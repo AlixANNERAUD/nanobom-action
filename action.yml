@@ -1,0 +1,112 @@
+name: nanobom SBOM upload
+description: Upload a CycloneDX SBOM to nanobom, optionally failing the job on vulnerable or known-exploited components.
+author: Alix ANNERAUD
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  url:
+    description: Address of the nanobom instance, such as https://nanobom.example.org.
+    required: true
+  token:
+    description: An upload token of the organization (or of the project), from its settings page.
+    required: true
+  organization:
+    description: Slug of the organization.
+    required: true
+  project:
+    description: Slug of the project; created by the first upload when the token covers the organization. Defaults to the repository name.
+    required: false
+    default: ${{ github.event.repository.name }}
+  sbom:
+    description: Path of an existing CycloneDX JSON SBOM. Without it, one is generated with Syft from `scan-path` or `scan-image`.
+    required: false
+    default: ""
+  scan-path:
+    description: Directory Syft scans when no `sbom` is given.
+    required: false
+    default: "."
+  scan-image:
+    description: Container image Syft scans instead of `scan-path` when no `sbom` is given.
+    required: false
+    default: ""
+  fail-on:
+    description: Fail the job when the project has open findings at or above this level - critical, high, medium, low or exploited. Implies `wait`.
+    required: false
+    default: ""
+  wait:
+    description: Wait for the project's evaluation and report its findings (true or false).
+    required: false
+    default: "true"
+  source-commit:
+    description: Commit the SBOM was built from.
+    required: false
+    default: ${{ github.sha }}
+  image-tag:
+    description: Container image tag the SBOM describes. Defaults to the Git tag when the workflow runs for one.
+    required: false
+    default: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+  summary:
+    description: Write the evaluation to the job summary (true or false).
+    required: false
+    default: "true"
+
+outputs:
+  http-status:
+    description: HTTP status of the upload.
+    value: ${{ steps.upload.outputs.http-status }}
+  project-url:
+    description: The project's page in nanobom.
+    value: ${{ steps.upload.outputs.project-url }}
+  evaluation-status:
+    description: succeeded, failed or timed_out; empty without `wait`.
+    value: ${{ steps.upload.outputs.evaluation-status }}
+  critical:
+    description: Open critical findings of the project.
+    value: ${{ steps.upload.outputs.critical }}
+  high:
+    description: Open high findings of the project.
+    value: ${{ steps.upload.outputs.high }}
+  medium:
+    description: Open medium findings of the project.
+    value: ${{ steps.upload.outputs.medium }}
+  low:
+    description: Open low findings of the project.
+    value: ${{ steps.upload.outputs.low }}
+  known-exploited:
+    description: Open findings of the project known to be exploited (CISA KEV).
+    value: ${{ steps.upload.outputs.known-exploited }}
+  sbom:
+    description: Path of the SBOM that was uploaded.
+    value: ${{ steps.upload.outputs.sbom }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate the SBOM
+      if: inputs.sbom == ''
+      uses: anchore/sbom-action@v0.24.3
+      with:
+        path: ${{ inputs.scan-image == '' && inputs.scan-path || '' }}
+        image: ${{ inputs.scan-image }}
+        format: cyclonedx-json
+        output-file: ${{ runner.temp }}/nanobom-sbom.cdx.json
+        upload-artifact: false
+        dependency-snapshot: false
+
+    - name: Upload the SBOM to nanobom
+      id: upload
+      shell: bash
+      run: '"$GITHUB_ACTION_PATH/upload.sh"'
+      env:
+        NANOBOM_URL: ${{ inputs.url }}
+        NANOBOM_TOKEN: ${{ inputs.token }}
+        NANOBOM_ORGANIZATION: ${{ inputs.organization }}
+        NANOBOM_PROJECT: ${{ inputs.project }}
+        NANOBOM_SBOM: ${{ inputs.sbom != '' && inputs.sbom || format('{0}/nanobom-sbom.cdx.json', runner.temp) }}
+        NANOBOM_FAIL_ON: ${{ inputs.fail-on }}
+        NANOBOM_WAIT: ${{ inputs.wait }}
+        NANOBOM_SOURCE_COMMIT: ${{ inputs.source-commit }}
+        NANOBOM_IMAGE_TAG: ${{ inputs.image-tag }}
+        NANOBOM_SUMMARY: ${{ inputs.summary }}

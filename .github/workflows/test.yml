@@ -1,0 +1,153 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, against nanobom's main branch, to catch API changes.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      nanobom-ref:
+        description: nanobom branch, tag or commit for the end-to-end test
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: ShellCheck
+        run: shellcheck upload.sh tests/run.sh
+      - name: actionlint
+        run: |
+          bash <(curl --silent --show-error --location https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  script:
+    name: Upload script against a mock
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: tests/run.sh
+
+  action:
+    name: Action against a mock
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Start the mock
+        run: |
+          nohup python3 tests/mock_nanobom.py 18765 "$RUNNER_TEMP/requests.jsonl" > /dev/null 2>&1 &
+          for _ in $(seq 50); do curl --silent --output /dev/null http://127.0.0.1:18765/ && break; sleep 0.1; done
+
+      - name: Generate an SBOM with Syft and upload it
+        id: generated
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765
+          token: nanobom_test
+          organization: acme
+          project: passing
+
+      - name: Upload an SBOM that crosses the threshold
+        id: gated
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765
+          token: nanobom_test
+          organization: acme
+          project: gated
+          sbom: tests/fixtures/sbom.cdx.json
+          fail-on: high
+
+      - name: Check the outcomes and outputs
+        run: |
+          set -x
+          test "$GENERATED_STATUS" = 201
+          test "$GENERATED_EVALUATION" = succeeded
+          test -s "$GENERATED_SBOM"
+          jq --exit-status '.bomFormat == "CycloneDX"' "$GENERATED_SBOM"
+          test "$GATED_OUTCOME" = failure
+          test "$GATED_STATUS" = 409
+          test "$GATED_HIGH" = 1
+          test "$GATED_EXPLOITED" = 1
+          jq --exit-status --slurp '.[1].query.fail_on == "high" and .[0].query.source_commit == env.GITHUB_SHA' "$RUNNER_TEMP/requests.jsonl"
+        env:
+          GENERATED_STATUS: ${{ steps.generated.outputs.http-status }}
+          GENERATED_EVALUATION: ${{ steps.generated.outputs.evaluation-status }}
+          GENERATED_SBOM: ${{ steps.generated.outputs.sbom }}
+          GATED_OUTCOME: ${{ steps.gated.outcome }}
+          GATED_STATUS: ${{ steps.gated.outputs.http-status }}
+          GATED_HIGH: ${{ steps.gated.outputs.high }}
+          GATED_EXPLOITED: ${{ steps.gated.outputs.known-exploited }}
+
+  end-to-end:
+    name: Action against nanobom
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: AlixANNERAUD/nanobom
+          ref: ${{ inputs.nanobom-ref || 'main' }}
+          path: nanobom
+
+      - name: Build and start nanobom
+        working-directory: nanobom
+        run: docker compose up --detach --build --wait --wait-timeout 300
+        env:
+          NANOBOM_IMAGE: nanobom:e2e
+
+      - name: Create an administrator and an upload token
+        id: token
+        working-directory: nanobom
+        run: |
+          printf 'end-to-end password\nend-to-end password\n' |
+            docker compose exec -T nanobom /app/nanobom --log-level off create-administrator --username ci
+          token="$(docker compose exec -T nanobom /app/nanobom --log-level off token create --organization ci --name e2e)"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+        env:
+          NANOBOM_IMAGE: nanobom:e2e
+
+      - name: Upload with the action
+        id: upload
+        uses: ./
+        with:
+          url: http://localhost:8080
+          token: ${{ steps.token.outputs.token }}
+          organization: ci
+          project: e2e
+          sbom: tests/fixtures/sbom.cdx.json
+
+      - name: Check the upload
+        run: |
+          set -x
+          test "$STATUS" = 201
+          # Versions of nanobom without the upload gate answer without an evaluation.
+          if [ -n "$EVALUATION" ]; then
+            test "$EVALUATION" = succeeded
+            test "$HIGH" -ge 1  # lodash 4.17.20: GHSA-35jh-r3h4-6jhm (CVE-2021-23337)
+          fi
+        env:
+          STATUS: ${{ steps.upload.outputs.http-status }}
+          EVALUATION: ${{ steps.upload.outputs.evaluation-status }}
+          HIGH: ${{ steps.upload.outputs.high }}
+
+      - name: Show nanobom's logs
+        if: failure()
+        working-directory: nanobom
+        run: docker compose logs
+        env:
+          NANOBOM_IMAGE: nanobom:e2e
