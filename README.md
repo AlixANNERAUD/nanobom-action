@@ -1,4 +1,4 @@
-# nanobom SBOM upload — vulnerability gate for GitHub Actions
+# nanobom SBOM upload - vulnerability gate for GitHub Actions
 
 [![Test](https://github.com/AlixANNERAUD/nanobom-action/actions/workflows/test.yml/badge.svg)](https://github.com/AlixANNERAUD/nanobom-action/actions/workflows/test.yml)
 [![nanobom](https://img.shields.io/badge/nanobom-self--hosted%20SBOM%20tracker-blue)](https://github.com/AlixANNERAUD/nanobom)
