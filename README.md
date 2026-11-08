@@ -1,10 +1,18 @@
-# nanobom SBOM upload
+# nanobom SBOM upload — vulnerability gate for GitHub Actions
 
 [![Test](https://github.com/AlixANNERAUD/nanobom-action/actions/workflows/test.yml/badge.svg)](https://github.com/AlixANNERAUD/nanobom-action/actions/workflows/test.yml)
+[![nanobom](https://img.shields.io/badge/nanobom-self--hosted%20SBOM%20tracker-blue)](https://github.com/AlixANNERAUD/nanobom)
 
-A GitHub Action that uploads a CycloneDX SBOM to [nanobom](https://github.com/AlixANNERAUD/nanobom)
-and reports the project's vulnerabilities in the job: a summary table, annotations, outputs, and
-optionally a failing job when findings cross a threshold.
+Ship nothing known to be exploited. In one step, this action generates a CycloneDX SBOM of your
+repository or container image (with Syft), uploads it to your
+[nanobom](https://github.com/AlixANNERAUD/nanobom) instance, and brings the answer back into the
+job:
+
+- **a summary table** of the project's open vulnerabilities, known-exploited ones (CISA KEV)
+  flagged, each linked to its page in nanobom;
+- **annotations** on the findings that crossed your threshold;
+- **a failing job** with `fail-on: critical | high | medium | low | exploited`;
+- **outputs** (counts per severity, known-exploited count, project URL) for later steps.
 
 ```yaml
 - uses: AlixANNERAUD/nanobom-action@v1
