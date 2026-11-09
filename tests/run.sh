@@ -88,7 +88,7 @@ check "it does not annotate a warned license" lacks "$log" "license in pkg:npm/m
 check "outputs the forbidden licenses" contains "$out" "forbidden-licenses=1"
 check "outputs the warned licenses" contains "$out" "warned-licenses=1"
 check "summarizes the license policy" contains "$summary" "License policy: **1** forbidden, **1** warned."
-check "summarizes an unknown license" contains "$summary" '| `pkg:npm/mystery@1.0.0` | `unknown` | warn |'
+check "summarizes an unknown license" contains "$summary" "| \`pkg:npm/mystery@1.0.0\` | \`unknown\` | warn |"
 
 run licensed NANOBOM_FAIL_ON=license
 check "license alone annotates the license" contains "$log" "Forbidden license in pkg:npm/copyleft"
