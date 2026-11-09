@@ -10,9 +10,11 @@ job:
 
 - **a summary table** of the project's open vulnerabilities, known-exploited ones (CISA KEV)
   flagged, each linked to its page in nanobom;
-- **annotations** on the findings that crossed your threshold;
-- **a failing job** with `fail-on: critical | high | medium | low | exploited`;
-- **outputs** (counts per severity, known-exploited count, project URL) for later steps.
+- **annotations** on the findings that crossed your threshold and on forbidden licenses;
+- **a failing job** with `fail-on: critical | high | medium | low | exploited | license`, or
+  several at once such as `fail-on: high,license`;
+- **outputs** (counts per severity, known-exploited count, license policy violations, project
+  URL) for later steps.
 
 ```yaml
 - uses: AlixANNERAUD/nanobom-action@v1
@@ -47,7 +49,7 @@ defaults to the repository's name and is created by its first upload.
 | `sbom` | | Path of an existing CycloneDX JSON SBOM; without it, one is generated |
 | `scan-path` | `.` | Directory Syft scans when no `sbom` is given |
 | `scan-image` | | Container image Syft scans instead of `scan-path` |
-| `fail-on` | | Fail when open findings are at or above `critical`, `high`, `medium` or `low`, or when one is known `exploited` (CISA KEV); implies `wait` |
+| `fail-on` | | Fail when open findings are at or above `critical`, `high`, `medium` or `low`, when one is known `exploited` (CISA KEV), or when a component's license is forbidden by the organization's `license` policy; several separated by commas (`high,license`); implies `wait` |
 | `wait` | `true` | Wait for the evaluation and report it |
 | `source-commit` | the workflow's commit | Commit shown in the project's upload history |
 | `image-tag` | the Git tag, if any | Image tag shown in the upload history |
@@ -62,13 +64,15 @@ defaults to the repository's name and is created by its first upload.
 | `evaluation-status` | `succeeded`, `failed` or `timed_out`; empty without `wait` |
 | `critical`, `high`, `medium`, `low` | Open findings of the project by severity |
 | `known-exploited` | Open findings known to be exploited |
+| `forbidden-licenses`, `warned-licenses` | Components whose license the organization's policy forbids or warns about; empty without a policy |
 | `sbom` | Path of the uploaded SBOM |
 
 The job fails when the upload is refused (token, project, size, invalid document), when
-`fail-on` is crossed (one annotation per finding, up to ten), or when `fail-on` is set and the
-evaluation did not complete (OSV unreachable, or longer than the server's
-`NANOBOM_UPLOAD_WAIT_SECONDS`). `wait`, `fail-on` and the evaluation need nanobom with the
-upload gate; older versions accept the upload and report no evaluation.
+`fail-on` is crossed (one annotation per finding and per forbidden license, up to ten each), or
+when `fail-on` names a severity or `exploited` and the evaluation did not complete (OSV
+unreachable, or longer than the server's `NANOBOM_UPLOAD_WAIT_SECONDS`). `wait`, `fail-on` and
+the evaluation need nanobom with the upload gate; older versions accept the upload and report no
+evaluation. Lists and `license` need nanobom with license policies.
 
 ## Examples
 

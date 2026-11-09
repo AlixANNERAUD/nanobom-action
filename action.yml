@@ -1,5 +1,5 @@
 name: nanobom SBOM upload
-description: Upload a CycloneDX SBOM to nanobom, optionally failing the job on vulnerable or known-exploited components.
+description: Upload a CycloneDX SBOM to nanobom, optionally failing the job on vulnerable or known-exploited components or forbidden licenses.
 author: Alix ANNERAUD
 branding:
   icon: shield
@@ -32,7 +32,7 @@ inputs:
     required: false
     default: ""
   fail-on:
-    description: Fail the job when the project has open findings at or above this level - critical, high, medium, low or exploited. Implies `wait`.
+    description: Fail the job on the project's evaluation - critical, high, medium or low (open findings at or above that severity), exploited (a known-exploited finding) or license (a component whose license the organization's policy forbids), or several separated by commas, such as `high,license`. Implies `wait`.
     required: false
     default: ""
   wait:
@@ -77,6 +77,12 @@ outputs:
   known-exploited:
     description: Open findings of the project known to be exploited (CISA KEV).
     value: ${{ steps.upload.outputs.known-exploited }}
+  forbidden-licenses:
+    description: Components whose license the organization's policy forbids (empty without a policy or without wait).
+    value: ${{ steps.upload.outputs.forbidden-licenses }}
+  warned-licenses:
+    description: Components whose license the organization's policy warns about (empty without a policy or without wait).
+    value: ${{ steps.upload.outputs.warned-licenses }}
   sbom:
     description: Path of the SBOM that was uploaded.
     value: ${{ steps.upload.outputs.sbom }}

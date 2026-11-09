@@ -76,6 +76,46 @@ RESPONSES = {
             ),
         },
     ),
+    "licensed": (
+        409,
+        {
+            **upload("licensed"),
+            "error": "1 component with a forbidden license",
+            "evaluation": {
+                **evaluation(
+                    "succeeded",
+                    (0, 1, 1, 0, 0),
+                    0,
+                    [
+                        finding("GHSA-high", "pkg:npm/lodash@4.17.20", "high"),
+                        finding("GHSA-medium", "pkg:npm/left-pad@1.0.0", "medium"),
+                    ],
+                ),
+                "licenses": {
+                    "forbidden": 1,
+                    "warned": 1,
+                    "violations": [
+                        {
+                            "component": "pkg:npm/copyleft@2.0.0",
+                            "name": "copyleft",
+                            "version": "2.0.0",
+                            "license": "MIT AND AGPL-3.0-only",
+                            "verdict": "forbid",
+                            "licenses": ["AGPL-3.0-only"],
+                        },
+                        {
+                            "component": "pkg:npm/mystery@1.0.0",
+                            "name": "mystery",
+                            "version": "1.0.0",
+                            "license": None,
+                            "verdict": "warn",
+                            "licenses": [],
+                        },
+                    ],
+                },
+            },
+        },
+    ),
     "incomplete": (
         503,
         {
