@@ -101,6 +101,8 @@ for level in critical high medium low; do
   output "$level" "$(field ".evaluation.open.$level")"
 done
 output known-exploited "$(field '.evaluation.known_exploited')"
+output forbidden-licenses "$(field '.evaluation.licenses.forbidden')"
+output warned-licenses "$(field '.evaluation.licenses.warned')"
 
 if [[ "${NANOBOM_SUMMARY:-true}" == true && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
@@ -122,7 +124,16 @@ if [[ "${NANOBOM_SUMMARY:-true}" == true && -n "${GITHUB_STEP_SUMMARY:-}" ]]; th
             ($e.findings[:25][]
               | "| [\(.vulnerability)](\(.url)) | `\(.component)` | \(.severity) | \(if .known_exploited then "yes" else "" end) |"),
             (if ($e.findings | length) > 25 then "\nShowing 25 of \($e.findings | length) listed findings." else empty end)
-          else "\nNo open findings." end)
+          else "\nNo open findings." end),
+          (if $e.licenses then
+            "\nLicense policy: **\($e.licenses.forbidden)** forbidden, **\($e.licenses.warned)** warned.",
+            (if ($e.licenses.violations | length) > 0 then
+              "\n| Component | License | Verdict |",
+              "| --- | --- | --- |",
+              ($e.licenses.violations[:25][]
+                | "| `\(.component)` | `\(.license // "unknown")` | \(.verdict) |")
+            else empty end)
+          else empty end)
       ' "$response"
     fi
     if [[ -n "$error" ]]; then
@@ -134,15 +145,25 @@ fi
 
 case "$status" in
   409)
-    # At most 10 annotations, for the findings that crossed the threshold.
+    # At most 10 annotations for the findings that crossed a threshold, and 10 for the forbidden
+    # licenses. `fail_on` is a comma-separated list, for example `high,license`.
     jq --raw-output --arg fail_on "$fail_on" '
       ["critical", "high", "medium", "low"] as $levels
-      | [.evaluation.findings[]
-         | select(if $fail_on == "exploited" then .known_exploited
-                  else (.severity as $severity | ($levels | index($severity)) as $i
-                        | $i != null and $i <= ($levels | index($fail_on))) end)]
-      | .[:10][]
-      | "::error title=\(.vulnerability) in \(.component)::\(.severity)\(if .known_exploited then ", known exploited" else "" end): \(.url)"
+      | ($fail_on | split(",")) as $items
+      | ([$items[] | . as $item | $levels | index($item) | select(. != null)] | max) as $threshold
+      | ($items | index("exploited") != null) as $exploited
+      | ([.evaluation.findings[]?
+          | select((.known_exploited and $exploited)
+                   or ($threshold != null
+                       and (.severity as $severity | ($levels | index($severity)) as $i
+                            | $i != null and $i <= $threshold)))]
+         | .[:10][]
+         | "::error title=\(.vulnerability) in \(.component)::\(.severity)\(if .known_exploited then ", known exploited" else "" end): \(.url)"),
+        (if $items | index("license") != null then
+           [.evaluation.licenses.violations[]? | select(.verdict == "forbid")]
+           | .[:10][]
+           | "::error title=Forbidden license in \(.component)::\(.license // "unknown") (\(.licenses | join(", ")))"
+         else empty end)
     ' "$response"
     fail "$error"
     ;;

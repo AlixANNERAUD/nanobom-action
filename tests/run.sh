@@ -78,6 +78,29 @@ run gated NANOBOM_FAIL_ON=exploited
 check "exploited annotates the exploited finding" contains "$log" "CVE-2021-44228 in"
 check "exploited does not annotate the others" lacks "$log" "GHSA-high in"
 
+run licensed NANOBOM_FAIL_ON="High, License"
+check "a license gate fails" test "$code" -ne 0
+check "it sends the list normalized" test "$(last_request .query.fail_on)" = "high,license"
+check "the list annotates the high finding" contains "$log" "::error title=GHSA-high in pkg:npm/lodash@4.17.20::high"
+check "the list does not annotate the medium finding" lacks "$log" "GHSA-medium in"
+check "it annotates the forbidden license" contains "$log" "::error title=Forbidden license in pkg:npm/copyleft@2.0.0::MIT AND AGPL-3.0-only (AGPL-3.0-only)"
+check "it does not annotate a warned license" lacks "$log" "license in pkg:npm/mystery"
+check "outputs the forbidden licenses" contains "$out" "forbidden-licenses=1"
+check "outputs the warned licenses" contains "$out" "warned-licenses=1"
+check "summarizes the license policy" contains "$summary" "License policy: **1** forbidden, **1** warned."
+check "summarizes an unknown license" contains "$summary" '| `pkg:npm/mystery@1.0.0` | `unknown` | warn |'
+
+run licensed NANOBOM_FAIL_ON=license
+check "license alone annotates the license" contains "$log" "Forbidden license in pkg:npm/copyleft"
+check "license alone annotates no finding" lacks "$log" "GHSA-high in"
+
+run gated NANOBOM_FAIL_ON=critical,exploited
+check "a list of a severity and exploited annotates the exploited finding" contains "$log" "CVE-2021-44228 in"
+check "it does not annotate below the threshold" lacks "$log" "GHSA-high in"
+
+run passing
+check "no license outputs without a policy" contains "$out" "forbidden-licenses="$'\n'
+
 run incomplete NANOBOM_FAIL_ON=critical
 check "an incomplete evaluation fails" test "$code" -ne 0
 check "it says why" contains "$log" "the evaluation did not complete"
