@@ -1,5 +1,5 @@
 name: nanobom SBOM upload
-description: Upload a CycloneDX SBOM to nanobom, optionally failing the job on vulnerable or known-exploited components or forbidden licenses.
+description: Upload a CycloneDX SBOM to nanobom and fail the job on vulnerable, known-exploited or forbidden-license components.
 author: Alix ANNERAUD
 branding:
   icon: shield
