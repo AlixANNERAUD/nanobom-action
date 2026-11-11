@@ -67,7 +67,7 @@ run passing NANOBOM_VERSION="release/2.4+lts" NANOBOM_LATEST=" False "
 check "a versioned upload succeeds" test "$code" -eq 0
 check "it sends the version" test "$(last_request .query.version)" = "release/2.4+lts"
 check "it sends latest normalized" test "$(last_request .query.latest)" = "false"
-check "it names the version in the summary" contains "$summary" 'version `release/2.4+lts`'
+check "it names the version in the summary" contains "$summary" "version \`release/2.4+lts\`"
 
 run passing NANOBOM_LATEST=maybe
 check "an invalid latest fails" test "$code" -ne 0
